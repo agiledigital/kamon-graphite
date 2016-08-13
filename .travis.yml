@@ -9,14 +9,8 @@ scala:
 jdk:
    - oraclejdk8
 script:
-  - sbt clean coverage test coverageReport
-  - sbt coverageAggregate
-after_success:
-  - sbt coveralls
+  - sbt clean test
 before_cache:
   # Tricks to avoid unnecessary cache updates
   - find $HOME/.ivy2 -name "ivydata-*.properties" -delete
   - find $HOME/.sbt -name "*.lock" -delete
-notifications:
-  slack:
-    secure: FPwWUjF6MAWnuqtIE4HUsydoEcLOnY3BzpudNlZCevKPvdghTQrcREs5QzumqgJSluCk+9kSV7t01XwKf+U9bpW/4r7MPa+cPZ6WjUpcHi1eQLFEC2cad0fUS76/FUvCvHsprt1HwI0Q6/EdpkTdYp4031WWF0IFbpmI17LzVeW9XIW2A/rphOKt1+NoICjwX+4OWmSHNNdii05emeLFXFJsZUEW8V4wAy/1F1ruWIohy/s3QhZN7fiN611BeGTKXGfDgoYH9al1SINbi9LtV3EXG+SYBuxUOMqlrniKz8heGxnx8F4W/6i38/L0ZkomrSH9X2NXK+Sf7ZDoZHgYSY0km+ytrpfeuQTcCIpMgEXqU0JZwS2e82oI2E4rXC6x/eaPH7ugSQIasp/FrBGU/gA16rDXZgOuySyYXqzm6noXC7bUpYBEM/2+F75dNdvXB37eP0vj2hUfICYTuz8oMVNU57wm8Qon2OTAvI811GdZ29v3c7HQLdtpO/Oqai6l1EyL8OXf0+pLk20UgReKhbnfpX7JTwkel4FYlXNDCZJkqyB71LDSok1sPvUdQWMGAmICN9mkC/pA/Qgbn/dwbZmhfeqL9M6uz0GRX0QRds2qIabf6vnQouYmfmHtrF0dKfGty6KQqWHk9/W2V9PZuUmqjijjSNONVC4nYHjXh4M=
