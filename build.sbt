@@ -49,7 +49,7 @@ lazy val commonSettings = Seq(
         Wart.Return,
         Wart.AsInstanceOf,
         Wart.IsInstanceOf)
-) ++ Formatting.formattingSettings
+) ++ Formatting.formattingSettings ++ Publishing.settings
 
 
 
