@@ -51,9 +51,7 @@ lazy val commonSettings = Seq(
         Wart.IsInstanceOf)
 ) ++ Formatting.formattingSettings ++ Publishing.settings
 
-
-
-lazy val kamonGraphite = (project in file("kamon-graphite")).
+lazy val kamonGraphite = (project in file(".")).
   settings(commonSettings: _*).
   settings(
     name := "kamon-graphite"

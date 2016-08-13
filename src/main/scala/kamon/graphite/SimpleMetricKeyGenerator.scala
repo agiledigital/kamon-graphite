@@ -17,7 +17,7 @@ class EscapingMetricKeyGenerator(config: Config) extends SimpleMetricKeyGenerato
         replace("/", "_").
         replaceAll("""^\.""", "_").
         replaceAll("""([^\\])\.""", "$1_").
-        replace("""\.""", ".")
+        replace("""\.""", "")
   }
 
   override def generateKey(entity: Entity, metricKey: MetricKey): String = {
@@ -75,7 +75,7 @@ class SimpleMetricKeyGenerator(config: Config) extends MetricKeyGenerator {
 
   def createNormalizer(strategy: String): Normalizer = strategy match {
     case "percent-encode" ⇒ PercentEncoder.encode
-    case "normalize" ⇒ (s: String) ⇒ s.replace(": ", "-").replace(":", "-").replace(" ", "_").replace("/", "_").replace(".", "_")
+    case "normalize" ⇒ (s: String) ⇒ s.replace(": ", "-").replace(":", "-").replace(" ", "_").replace("/", "_").replace("", "_")
   }
 }
 
