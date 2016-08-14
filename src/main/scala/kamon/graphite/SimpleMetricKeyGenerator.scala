@@ -17,7 +17,7 @@ class EscapingMetricKeyGenerator(config: Config) extends SimpleMetricKeyGenerato
         replace("/", "_").
         replaceAll("""^\.""", "_").
         replaceAll("""([^\\])\.""", "$1_").
-        replace("""\.""", "")
+        replace("""\.""", ".")
   }
 
   override def generateKey(entity: Entity, metricKey: MetricKey): String = {

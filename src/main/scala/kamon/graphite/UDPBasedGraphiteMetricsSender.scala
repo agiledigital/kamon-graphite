@@ -30,7 +30,7 @@ class UDPBasedGraphiteMetricsSender(graphiteConfig: Config, metricKeyGenerator: 
   val graphitePort = graphiteConfig.getInt("port")
   val percentiles: Seq[Integer] = Some(graphiteConfig.getIntList("percentiles")).map(_.asScala).getOrElse(Nil)
 
-  var graphite = new GraphiteUDP(graphiteHost, graphitePort)
+  val graphite = new GraphiteUDP(graphiteHost, graphitePort)
 
   def receive: Receive = {
     case tick: TickMetricSnapshot => writeMetricsToRemote(tick)
@@ -64,7 +64,6 @@ class UDPBasedGraphiteMetricsSender(graphiteConfig: Config, metricKeyGenerator: 
       val failures = graphite.getFailures
       if (failures > 0) {
         log.warning(s"Failed to send [$failures] / [${metrics.size}] metrics to [$graphiteHost]:[$graphitePort].")
-        graphite = new GraphiteUDP(graphiteHost, graphitePort)
       }
     }
   }
