@@ -73,8 +73,8 @@ class UDPBasedGraphiteMetricsSender(graphiteConfig: Config, metricKeyGenerator: 
     val mean = if (cs.numberOfMeasurements == 0) 0 else cs.sum / cs.numberOfMeasurements
 
     Seq(
-      keyPrefix + ".max" -> cs.max.toString,
-      keyPrefix + ".min" -> cs.min.toString,
+      keyPrefix + ".upper" -> cs.max.toString,
+      keyPrefix + ".lower" -> cs.min.toString,
       keyPrefix + ".mean" -> mean.toString
     )
   }
@@ -84,14 +84,14 @@ class UDPBasedGraphiteMetricsSender(graphiteConfig: Config, metricKeyGenerator: 
     val mean = if (gauge.numberOfMeasurements == 0) 0 else gauge.sum / gauge.numberOfMeasurements
 
     Seq(
-      keyPrefix + ".max" -> gauge.max.toString,
-      keyPrefix + ".min" -> gauge.min.toString,
+      keyPrefix + ".upper" -> gauge.max.toString,
+      keyPrefix + ".lower" -> gauge.min.toString,
       keyPrefix + ".sum" -> gauge.sum.toString,
       keyPrefix + ".median" -> gauge.percentile(50D).toString,
       keyPrefix + ".mean" -> mean.toString
     ) ++
       percentiles.map { percentile ⇒
-        keyPrefix + s".${percentile}_percentile" -> gauge.percentile(percentile.doubleValue()).toString
+        keyPrefix + s".upper_$percentile" -> gauge.percentile(percentile.doubleValue()).toString
       }
   }
 
@@ -106,14 +106,14 @@ class UDPBasedGraphiteMetricsSender(graphiteConfig: Config, metricKeyGenerator: 
 
     Seq(
       keyPrefix + ".count" -> hs.numberOfMeasurements.toString,
-      keyPrefix + ".max" -> hs.max.toString,
-      keyPrefix + ".min" -> hs.min.toString,
+      keyPrefix + ".upper" -> hs.max.toString,
+      keyPrefix + ".lower" -> hs.min.toString,
       keyPrefix + ".sum" -> hs.sum.toString,
       keyPrefix + ".median" -> hs.percentile(50D).toString,
       keyPrefix + ".mean" -> mean.toString
     ) ++
       percentiles.map { percentile =>
-        keyPrefix + s".${percentile}_percentile" -> hs.percentile(percentile.doubleValue()).toString
+        keyPrefix + s".upper_$percentile" -> hs.percentile(percentile.doubleValue()).toString
       }
   }
 }
