@@ -97,24 +97,31 @@ class UDPBasedGraphiteMetricsSender(graphiteConfig: Config, metricKeyGenerator: 
 
   private def writeCounter(time: Long, entity: Entity, metricKey: CounterKey, cs: CounterSnapshot): Seq[GraphiteMetric] = {
     val keyPrefix = metricKeyGenerator.generateKey(entity, metricKey)
+
     Seq(keyPrefix -> cs.count.toString)
   }
 
   private def writeHistogram(time: Long, entity: Entity, metricKey: HistogramKey, hs: HistogramSnapshot): Seq[GraphiteMetric] = {
-    val keyPrefix = metricKeyGenerator.generateKey(entity, metricKey)
-    val mean = if (hs.numberOfMeasurements == 0) 0 else hs.sum / hs.numberOfMeasurements
 
-    Seq(
-      keyPrefix + ".count" -> hs.numberOfMeasurements.toString,
-      keyPrefix + ".upper" -> hs.max.toString,
-      keyPrefix + ".lower" -> hs.min.toString,
-      keyPrefix + ".sum" -> hs.sum.toString,
-      keyPrefix + ".median" -> hs.percentile(50D).toString,
-      keyPrefix + ".mean" -> mean.toString
-    ) ++
-      percentiles.map { percentile =>
-        keyPrefix + s".upper_$percentile" -> hs.percentile(percentile.doubleValue()).toString
-      }
+    if (hs.numberOfMeasurements == 0) {
+      Nil
+    }
+    else {
+      val keyPrefix = metricKeyGenerator.generateKey(entity, metricKey)
+      val mean = if (hs.numberOfMeasurements == 0) 0 else hs.sum / hs.numberOfMeasurements
+
+      Seq(
+        keyPrefix + ".count" -> hs.numberOfMeasurements.toString,
+        keyPrefix + ".upper" -> hs.max.toString,
+        keyPrefix + ".lower" -> hs.min.toString,
+        keyPrefix + ".sum" -> hs.sum.toString,
+        keyPrefix + ".median" -> hs.percentile(50D).toString,
+        keyPrefix + ".mean" -> mean.toString
+      ) ++
+        percentiles.map { percentile =>
+          keyPrefix + s".upper_$percentile" -> hs.percentile(percentile.doubleValue()).toString
+        }
+    }
   }
 }
 
