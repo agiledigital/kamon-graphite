@@ -30,13 +30,14 @@ class UDPBasedGraphiteMetricsSender(graphiteConfig: Config, metricKeyGenerator: 
   val graphitePort = graphiteConfig.getInt("port")
   val percentiles: Seq[Integer] = Some(graphiteConfig.getIntList("percentiles")).map(_.asScala).getOrElse(Nil)
 
-  val graphite = new GraphiteUDP(graphiteHost, graphitePort)
-
   def receive: Receive = {
     case tick: TickMetricSnapshot => writeMetricsToRemote(tick)
   }
 
   def writeMetricsToRemote(tick: TickMetricSnapshot): Unit = {
+
+    val graphite = new GraphiteUDP(graphiteHost, graphitePort)
+
     val time = tick.from.toTimestamp.seconds
 
     for (
