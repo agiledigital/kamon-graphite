@@ -22,7 +22,7 @@ lazy val commonSettings = Seq(
   ),
   libraryDependencies ++= Seq(
     "io.dropwizard.metrics" % "metrics-graphite" % "3.1.2",
-    "io.kamon" %% "kamon-core" % "0.6.2"
+    "io.kamon" %% "kamon-core" % "0.6.3"
   ),
   // Disable scaladoc generation in dist.
   sources in(Compile, doc) := Seq.empty,
