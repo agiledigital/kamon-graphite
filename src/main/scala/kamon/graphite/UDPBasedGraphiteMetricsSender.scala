@@ -1,8 +1,10 @@
 package kamon.graphite
 
-import akka.actor.{ Actor, ActorLogging, ActorRef, ActorSystem, Props }
+import java.net.InetSocketAddress
+
+import akka.actor.{ Actor, ActorLogging, ActorRef, ActorSystem, PoisonPill, Props }
+import akka.io.Udp.Send
 import akka.io.{ IO, Udp }
-import com.codahale.metrics.graphite._
 import com.typesafe.config.Config
 import kamon.metric.SubscriptionsDispatcher.TickMetricSnapshot
 import kamon.metric._
@@ -15,8 +17,9 @@ import kamon.metric.instrument.Histogram.{ Snapshot => HistogramSnapshot }
   * to select [[UDPBasedGraphiteMetricsSender]] as your sender
   */
 object UDPBasedGraphiteMetricsSender extends GraphiteMetricsSenderFactory {
-  override def props(graphiteConfig: Config, metricKeyGenerator: MetricKeyGenerator): Props =
+  override def props(graphiteConfig: Config, metricKeyGenerator: MetricKeyGenerator): Props = {
     Props(new UDPBasedGraphiteMetricsSender(graphiteConfig, metricKeyGenerator))
+  }
 }
 
 class UDPBasedGraphiteMetricsSender(graphiteConfig: Config, metricKeyGenerator: MetricKeyGenerator)
@@ -26,102 +29,134 @@ class UDPBasedGraphiteMetricsSender(graphiteConfig: Config, metricKeyGenerator: 
 
   import collection.JavaConverters._
 
-  val graphiteHost = graphiteConfig.getString("hostname")
-  val graphitePort = graphiteConfig.getInt("port")
-  val percentiles: Seq[Integer] = Some(graphiteConfig.getIntList("percentiles")).map(_.asScala).getOrElse(Nil)
+  private val graphiteHost = graphiteConfig.getString("hostname")
+  private val graphitePort = graphiteConfig.getInt("port")
+  private val percentiles: Seq[Integer] = Some(graphiteConfig.getIntList("percentiles")).map(_.asScala).getOrElse(Nil)
 
-  def receive: Receive = {
-    case tick: TickMetricSnapshot => writeMetricsToRemote(tick)
+  private val plaintextEncoder = new GraphitePlaintextEncoder()
+
+  udpExtension(context.system) ! Udp.SimpleSender
+
+  private var udpSender: Option[ActorRef] = None
+
+  override def preRestart(reason: Throwable, message: Option[Any]): Unit = {
+    super.preRestart(reason, message)
+    log.debug(s"Sending PoisonPill to [$udpSender] during restart.")
+    udpSender.foreach(_ ! PoisonPill)
   }
 
-  def writeMetricsToRemote(tick: TickMetricSnapshot): Unit = {
+  def receive: Receive = {
+    case Udp.SimpleSenderReady =>
+      this.udpSender = Some(sender())
+      context.become(ready(sender()))
+  }
 
-    val graphite = new GraphiteUDP(graphiteHost, graphitePort)
+  def ready(udp: ActorRef): Receive = {
+    case tick: TickMetricSnapshot => writeMetricsToRemote(tick, udp)
+  }
 
-    val time = tick.from.toTimestamp.seconds
+  /**
+    * Writes the metrics in the metric snapshot to the remote host using the UDP actor.
+    *
+    * @param tick the metrics to write.
+    * @param udp  the UDP actor to send the metrics to for delivery.
+    */
+  private def writeMetricsToRemote(tick: TickMetricSnapshot, udp: ActorRef): Unit = {
+
+    val time: Long = tick.from.toTimestamp.seconds
+
+    val address = new InetSocketAddress(graphiteHost, graphitePort)
+
+    val sendMetric: (GraphiteMetric) => Unit = send(time, udp, address)
 
     for (
       (entity, snapshot) <- tick.metrics
     ) {
-      val metrics = snapshot.histograms.flatMap {
+      snapshot.histograms.foreach {
         case (metricKey, hs) =>
-          writeHistogram(time, entity, metricKey, hs)
-      } ++ snapshot.counters.flatMap {
+          sendHistogram(time, entity, metricKey, hs)(sendMetric)
+      }
+
+      snapshot.counters.foreach {
         case (metricKey, cs) =>
-          writeCounter(time, entity, metricKey, cs)
-      } ++ snapshot.gauges.flatMap {
+          sendCounter(time, entity, metricKey, cs)(sendMetric)
+      }
+
+      snapshot.gauges.foreach {
         case (metricKey, gauge) =>
-          writeGauge(time, entity, metricKey, gauge)
-      } ++ snapshot.minMaxCounters.flatMap {
+          sendGauge(time, entity, metricKey, gauge)(sendMetric)
+      }
+
+      snapshot.minMaxCounters.foreach {
         case (metricKey, cs) =>
-          writeMinMaxCounter(time, entity, metricKey, cs)
-      }
-
-      metrics.foreach {
-        case (name, value) =>
-          graphite.send(name, value, time)
-      }
-
-      val failures = graphite.getFailures
-      if (failures > 0) {
-        log.warning(s"Failed to send [$failures] / [${metrics.size}] metrics to [$graphiteHost]:[$graphitePort].")
+          sendMinMaxCounter(time, entity, metricKey, cs)(sendMetric)
       }
     }
   }
 
-  private def writeMinMaxCounter(time: Long, entity: Entity, metricKey: MinMaxCounterKey, cs: HistogramSnapshot): Seq[GraphiteMetric] = {
+  /**
+    * Sends the metric to the specified address using the provided actor.
+    *
+    * @param time    the time at which the metric was recorded.
+    * @param udp     the actor that will be sent the metric for delivery.
+    * @param address the address to which the metric will be sent.
+    * @param metric  the metric to send.
+    */
+  private def send(time: Long, udp: ActorRef, address: InetSocketAddress)(metric: GraphiteMetric): Unit = {
+    val byteString = plaintextEncoder.encode(metric._1, metric._2, time)
+    val send = Send(byteString, address)
+    udp ! send
+  }
+
+  private def sendMinMaxCounter(time: Long, entity: Entity, metricKey: MinMaxCounterKey, cs: HistogramSnapshot)(sendMetric: (GraphiteMetric) => Unit): Unit = {
     val keyPrefix = metricKeyGenerator.generateKey(entity, metricKey)
     val mean = if (cs.numberOfMeasurements == 0) 0 else cs.sum / cs.numberOfMeasurements
 
-    Seq(
-      keyPrefix + ".upper" -> cs.max.toString,
-      keyPrefix + ".lower" -> cs.min.toString,
-      keyPrefix + ".mean" -> mean.toString
-    )
+    sendMetric(keyPrefix + ".upper" -> cs.max.toString)
+    sendMetric(keyPrefix + ".lower" -> cs.min.toString)
+    sendMetric(keyPrefix + ".mean" -> mean.toString)
   }
 
-  private def writeGauge(time: Long, entity: Entity, metricKey: GaugeKey, gauge: HistogramSnapshot): Seq[GraphiteMetric] = {
+  private def sendGauge(time: Long, entity: Entity, metricKey: GaugeKey, gauge: HistogramSnapshot)(sendMetric: (GraphiteMetric) => Unit): Unit = {
     val keyPrefix = metricKeyGenerator.generateKey(entity, metricKey)
     val mean = if (gauge.numberOfMeasurements == 0) 0 else gauge.sum / gauge.numberOfMeasurements
 
-    Seq(
-      keyPrefix + ".upper" -> gauge.max.toString,
-      keyPrefix + ".lower" -> gauge.min.toString,
-      keyPrefix + ".sum" -> gauge.sum.toString,
-      keyPrefix + ".median" -> gauge.percentile(50D).toString,
-      keyPrefix + ".mean" -> mean.toString
-    ) ++
-      percentiles.map { percentile ⇒
-        keyPrefix + s".upper_$percentile" -> gauge.percentile(percentile.doubleValue()).toString
-      }
+    sendMetric(keyPrefix + ".upper" -> gauge.max.toString)
+    sendMetric(keyPrefix + ".lower" -> gauge.min.toString)
+    sendMetric(keyPrefix + ".sum" -> gauge.sum.toString)
+    sendMetric(keyPrefix + ".median" -> gauge.percentile(50D).toString)
+    sendMetric(keyPrefix + ".mean" -> mean.toString)
+
+    percentiles.foreach { percentile ⇒
+      sendMetric(keyPrefix + s".upper_$percentile" -> gauge.percentile(percentile.doubleValue()).toString)
+    }
   }
 
-  private def writeCounter(time: Long, entity: Entity, metricKey: CounterKey, cs: CounterSnapshot): Seq[GraphiteMetric] = {
+  private def sendCounter(time: Long, entity: Entity, metricKey: CounterKey, cs: CounterSnapshot)(sendMetric: (GraphiteMetric) => Unit): Unit = {
     val keyPrefix = metricKeyGenerator.generateKey(entity, metricKey)
 
-    Seq(keyPrefix -> cs.count.toString)
+    sendMetric(keyPrefix -> cs.count.toString)
   }
 
-  private def writeHistogram(time: Long, entity: Entity, metricKey: HistogramKey, hs: HistogramSnapshot): Seq[GraphiteMetric] = {
+  private def sendHistogram(time: Long, entity: Entity, metricKey: HistogramKey, hs: HistogramSnapshot)(sendMetric: (GraphiteMetric) => Unit): Unit = {
 
     if (hs.numberOfMeasurements == 0) {
-      Nil
+      ()
     }
     else {
       val keyPrefix = metricKeyGenerator.generateKey(entity, metricKey)
       val mean = if (hs.numberOfMeasurements == 0) 0 else hs.sum / hs.numberOfMeasurements
 
-      Seq(
-        keyPrefix + ".count" -> hs.numberOfMeasurements.toString,
-        keyPrefix + ".upper" -> hs.max.toString,
-        keyPrefix + ".lower" -> hs.min.toString,
-        keyPrefix + ".sum" -> hs.sum.toString,
-        keyPrefix + ".median" -> hs.percentile(50D).toString,
-        keyPrefix + ".mean" -> mean.toString
-      ) ++
-        percentiles.map { percentile =>
-          keyPrefix + s".upper_$percentile" -> hs.percentile(percentile.doubleValue()).toString
-        }
+      sendMetric(keyPrefix + ".count" -> hs.numberOfMeasurements.toString)
+      sendMetric(keyPrefix + ".upper" -> hs.max.toString)
+      sendMetric(keyPrefix + ".lower" -> hs.min.toString)
+      sendMetric(keyPrefix + ".sum" -> hs.sum.toString)
+      sendMetric(keyPrefix + ".median" -> hs.percentile(50D).toString)
+      sendMetric(keyPrefix + ".mean" -> mean.toString)
+
+      percentiles.foreach { percentile ⇒
+        sendMetric(keyPrefix + s".upper_$percentile" -> hs.percentile(percentile.doubleValue()).toString)
+      }
     }
   }
 }
