@@ -21,7 +21,6 @@ lazy val commonSettings = Seq(
     "-Ywarn-numeric-widen" // Warn when numerics are widened.
   ),
   libraryDependencies ++= Seq(
-    "io.dropwizard.metrics" % "metrics-graphite" % "3.1.2",
     "io.kamon" %% "kamon-core" % "0.6.3"
   ),
   // Disable scaladoc generation in dist.
