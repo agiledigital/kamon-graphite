@@ -12,17 +12,17 @@ import kamon.metric.instrument.Counter.{ Snapshot => CounterSnapshot }
 import kamon.metric.instrument.Histogram.{ Snapshot => HistogramSnapshot }
 
 /**
-  * Factory for [[UDPBasedGraphiteMetricsSender]].
+  * Factory for [[PlaintextUDPBasedGraphiteMetricsSender]].
   * Use FQCN of the object in "kamon.graphite.graphite-metrics-sender"
-  * to select [[UDPBasedGraphiteMetricsSender]] as your sender
+  * to select [[PlaintextUDPBasedGraphiteMetricsSender]] as your sender
   */
-object UDPBasedGraphiteMetricsSender extends GraphiteMetricsSenderFactory {
+object PlaintextUDPBasedGraphiteMetricsSender extends GraphiteMetricsSenderFactory {
   override def props(graphiteConfig: Config, metricKeyGenerator: MetricKeyGenerator): Props = {
-    Props(new UDPBasedGraphiteMetricsSender(graphiteConfig, metricKeyGenerator))
+    Props(new PlaintextUDPBasedGraphiteMetricsSender(graphiteConfig, metricKeyGenerator))
   }
 }
 
-class UDPBasedGraphiteMetricsSender(graphiteConfig: Config, metricKeyGenerator: MetricKeyGenerator)
+class PlaintextUDPBasedGraphiteMetricsSender(graphiteConfig: Config, metricKeyGenerator: MetricKeyGenerator)
     extends Actor with UdpExtensionProvider with ActorLogging {
 
   type GraphiteMetric = (String, String)
