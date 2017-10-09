@@ -37,6 +37,7 @@ class PlaintextUDPBasedGraphiteMetricsSender(graphiteConfig: Config, metricKeyGe
 
   udpExtension(context.system) ! Udp.SimpleSender
 
+  @SuppressWarnings(Array("org.wartremover.warts.Var"))
   private var udpSender: Option[ActorRef] = None
 
   override def preRestart(reason: Throwable, message: Option[Any]): Unit = {

@@ -1,12 +1,10 @@
-import org.scalastyle.sbt.ScalastylePlugin._
-
-val Specs2Version = "3.6.5"
+val Specs2Version = "4.0.0"
 
 lazy val compileScalastyle = taskKey[Unit]("compileScalastyle")
 
 lazy val commonSettings = Seq(
   organization := "au.com.agiledigital",
-  scalaVersion := "2.11.8",
+  scalaVersion := "2.12.3",
   javacOptions ++= Seq("-source", "1.8", "-target", "1.8", "-Xlint:unchecked", "-encoding", "UTF-8"),
   scalacOptions ++= Seq(
     "-deprecation", // Emit warning and location for usages of deprecated APIs.
@@ -21,37 +19,36 @@ lazy val commonSettings = Seq(
     "-Ywarn-numeric-widen" // Warn when numerics are widened.
   ),
   libraryDependencies ++= Seq(
-    "io.kamon" %% "kamon-core" % "0.6.3"
+    "io.kamon" %% "kamon-core" % "0.6.7" % "provided"
   ),
   // Disable scaladoc generation in dist.
-  sources in(Compile, doc) := Seq.empty,
+  sources in (Compile, doc) := Seq.empty,
   updateOptions := updateOptions.value.withCachedResolution(true),
   // Restrict resources that will be used.
   concurrentRestrictions in Global := Seq(
     Tags.limitSum(1, Tags.Compile, Tags.Test),
     Tags.limitAll(2)
   ),
-  scalastyleFailOnError := true,
-  compileScalastyle := org.scalastyle.sbt.ScalastylePlugin.scalastyle.in(Compile).toTask("").value,
-  (test in Test) <<= (test in Test) dependsOn compileScalastyle,
   wartremoverErrors in (Compile, compile) ++= Seq(
-        Wart.FinalCaseClass,
-        Wart.Null,
-        Wart.TryPartial,
-        Wart.OptionPartial,
-        Wart.ListOps,
-        Wart.EitherProjectionPartial,
-        Wart.Any2StringAdd,
-        Wart.AsInstanceOf,
-        Wart.ExplicitImplicitTypes,
-        Wart.MutableDataStructures,
-        Wart.Return,
-        Wart.AsInstanceOf,
-        Wart.IsInstanceOf)
-) ++ Formatting.formattingSettings ++ Publishing.settings
+    Wart.FinalCaseClass,
+    Wart.Null,
+    Wart.TryPartial,
+    Wart.Var,
+    Wart.OptionPartial,
+    Wart.TraversableOps,
+    Wart.EitherProjectionPartial,
+    Wart.StringPlusAny,
+    Wart.AsInstanceOf,
+    Wart.ExplicitImplicitTypes,
+    Wart.MutableDataStructures,
+    Wart.Return,
+    Wart.AsInstanceOf,
+    Wart.IsInstanceOf
+  )
+) ++ Publishing.settings
 
-lazy val kamonGraphite = (project in file(".")).
-  settings(commonSettings: _*).
-  settings(
+lazy val kamonGraphite = (project in file("."))
+  .settings(commonSettings: _*)
+  .settings(
     name := "kamon-graphite"
   )
