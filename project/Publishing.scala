@@ -11,7 +11,22 @@ object Publishing {
 
   val settings = Seq(
 
-    credentials += Credentials(Path.userHome / ".ivy2" / ".credentials"),
+    pomIncludeRepository in Global := { _ =>
+      false
+    },
+
+    publishTo in Global := {
+      val nexus = "https://oss.sonatype.org/"
+      if (isSnapshot.value)
+        Some("snapshots" at nexus + "content/repositories/snapshots")
+      else
+        Some("releases" at nexus + "service/local/staging/deploy/maven2")
+    },
+
+    credentials ++= (for {
+      username <- Option(System.getenv().get("SONATYPE_USERNAME"))
+      password <- Option(System.getenv().get("SONATYPE_PASSWORD"))
+    } yield Credentials("Sonatype Nexus Repository Manager", "oss.sonatype.org", username, password)).toSeq,
 
     // Your profile name of the sonatype account. The default is the same with the organization value
     sonatypeProfileName := "au.com.agiledigital",
